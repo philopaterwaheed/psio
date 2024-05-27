@@ -41,18 +41,6 @@ int main(int argc, char* argv[]) {
     fwrite(input_content.c_str(), 1, input_content.size(), pipe);
     pclose(pipe);
 
-    // Capture and print the output of the compiled program
-    pipe = popen(run_command.c_str(), "r");
-    if (!pipe) {
-        std::cerr << "Failed to run the compiled program" << std::endl;
-        return 1;
-    }
-
-    char buffer[128];
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        std::cout << buffer;
-    }
-    pclose(pipe);
 
     return 0;
 }
