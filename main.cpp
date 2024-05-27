@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
       fetchHTML("https://codeforces.com/problemset/problem/1970/F3").c_str();
   std::vector<std::string> inputs;
   std::vector<std::string> outputs;
-  parseHTML(html, inputs, inputs);
+  parseHTML(html, inputs, outputs);
 
   for (int i = 0; i < inputs.size(); i++) {
     std::cout << inputs[i] << "in" << std::endl;
@@ -148,10 +148,6 @@ void search_for_text(GumboNode* node, std::vector<std::string>& results , std:: 
 void parseHTML(const std::string &html, std::vector<std::string> &inputs,
                std::vector<std::string> &outputs) {
   GumboOutput *output = gumbo_parse(html.c_str());
-  std::vector<std::string> results;
-  search_for_text(output->root, results, "input");
-  search_for_text(output->root, results, "output");
-  for (auto x : results) {
-    std::cout << x<<"\n";
-  }
+  search_for_text(output->root, inputs, "input");
+  search_for_text(output->root, outputs, "output");
 }
