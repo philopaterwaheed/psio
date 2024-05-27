@@ -3,9 +3,12 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <curl/curl.h>
+#include <gumbo.h>
 
 int feed(std ::string input_file);
 int compile(std ::string file_name);
+std::string fetchHTML(const std::string& url) ;
 
 static std::string output_exe = "output_program";
 int main(int argc, char *argv[]) {
@@ -18,8 +21,9 @@ int main(int argc, char *argv[]) {
   const char *cpp_file = argv[1];
   const char *input_file = argv[2];
 
-  compile(cpp_file);
-  feed(input_file);
+  // compile(cpp_file);
+  // feed(input_file);
+  std :: cout << fetchHTML("https://www.google.com");
   return 0;
 }
 
@@ -54,4 +58,34 @@ int feed(std ::string input_file) {
   fwrite(input_content.c_str(), 1, input_content.size(), pipe);
   pclose(pipe);
   return 1;
+}
+
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* s) {
+    size_t newLength = size * nmemb;
+    size_t oldLength = s->size();
+    try {
+        s->resize(oldLength + newLength);
+    } catch (std::bad_alloc &e) {
+        // handle memory problem
+        return 0;
+    }
+
+    std::copy((char*)contents, (char*)contents + newLength, s->begin() + oldLength);
+    return size * nmemb;
+}
+
+std::string fetchHTML(const std::string& url) {
+    CURL* curl;
+    CURLcode res;
+    std::string htmlContent;
+
+    curl = curl_easy_init();
+    if(curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str()); // setting curl url
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback); //setting write function
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &htmlContent); // setting write data
+        res = curl_easy_perform(curl); // getting response
+        curl_easy_cleanup(curl); // cleaning up
+    }
+    return htmlContent;
 }
