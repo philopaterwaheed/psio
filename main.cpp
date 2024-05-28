@@ -1,8 +1,10 @@
 #include "json.hpp"
+#include "program.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <curl/curl.h>
+#include <filesystem>
 #include <fstream>
 #include <gumbo.h>
 #include <iostream>
@@ -10,6 +12,10 @@
 #include <unistd.h>
 #include <vector>
 
+#define CONFIG_FILE ".config.json"
+namespace fs = std::filesystem;
+
+int setup();
 int feed(std ::string input_file);
 int compile(std ::string file_name);
 std::string fetchHTML(const std::string &url);
@@ -17,38 +23,44 @@ void parseHTML(const std::string &html, std::vector<std::string> &inputs,
                std::vector<std::string> &outputs);
 void searchForTestCases(GumboNode *node, std::vector<std::string> &inputs,
                         std::vector<std::string> &outputs);
+bool exists(std ::string file_name);
+void check_json_config();
+void text_in_red(std::string s) ;
 
-static std::string output_exe = "output_program";
 int main(int argc, char *argv[]) {
-  if (argc != 3) { // get the source and it's input
-    std::cerr << "Usage: " << argv[0] << " <cpp_source_file> <input_text_file>"
-              << std::endl;
-    return 1;
+  enum Mode { Create, Exists, Setup };
+  Mode mode = (Mode)setup();
+  std::cout << mode;
+  while (true) {
+    switch (mode) {
+    case Create: {
+      program problem;
+      std::ifstream config_file(CONFIG_FILE);
+      std::cout << "please enter the problem url" << std::endl;
+      std::cin >> problem.url;
+    }
+    }
   }
-
-  const char *cpp_file = argv[1];
-  const char *input_file = argv[2];
-
-  // compile(cpp_file);
-  // feed(input_file);
-  std ::string html =
-      fetchHTML("https://codeforces.com/problemset/problem/1970/F3").c_str();
-  std::vector<std::string> inputs;
-  std::vector<std::string> outputs;
-  parseHTML(html, inputs, outputs);
-
-  for (int i = 0; i < inputs.size(); i++) {
-    std::cout << inputs[i] << "in" << std::endl;
-  }
-  for (int i = 0; i < outputs.size(); i++) {
-    std::cout << outputs[i] << "out" << std::endl;
-  }
-  compile(cpp_file);
-  feed(input_file);
-  return 0;
 }
 
-int compile(std ::string file_name) {
+bool exists(std ::string file_name) { return fs::exists(file_name); }
+int setup() {
+  std::cout << "psio test runner" << std::endl;
+  while (true) {
+    std::cout << "please enter the mode you want to run" << std::endl;
+    std::cout << " please enter 0 for create" << std::endl
+              << " please enter 1 for exists" << std::endl;
+    int x;
+    std ::cin >> x;
+    if (x == 0 || x == 1)
+      return x;
+    else {
+	text_in_red("please enter a valid number\n");
+    }
+  }
+}
+
+int compile(std ::string file_name, std::string output_exe) {
   std::string compile_command =
       "g++ " + file_name + " -o " + output_exe; // compile the file
   if (system(compile_command.c_str()) != 0) {
@@ -57,7 +69,7 @@ int compile(std ::string file_name) {
   }
   return 1;
 }
-int feed(std ::string input_file) {
+int feed(std ::string input_file, std::string output_exe) {
   int fd;
   fpos_t pos;
   fflush(stdout);
@@ -175,4 +187,9 @@ void parseHTML(const std::string &html, std::vector<std::string> &inputs,
   GumboOutput *output = gumbo_parse(html.c_str());
   search_for_text(output->root, inputs, "input");
   search_for_text(output->root, outputs, "output");
+}
+void text_in_red(std::string s) {
+  std::cout << "\033[1;31m";
+  std::cout << s;
+  std::cout << "\033[0m";
 }
