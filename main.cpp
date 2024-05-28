@@ -230,22 +230,35 @@ std::string setup_problem(std::string url) {
     for (auto o : outputs) {
       out << o << "\n";
     };
+    std::string source = get_temp();// get the template file 
+    std::string destination = title[0]+".cpp"; // creating the source file
+    try {
+        fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
+        std::cout << "Template copied successfully." << std::endl;
+    } catch (fs::filesystem_error& e) {
+        std::cerr << "Error copying template: " << e.what() << std::endl;
+    }
     return title[0];
     ;
   }
   return "";
 }
 std ::string get_temp() {
-  if (!exists("~/.config/piso.temp")) {
+    std:: string config =std::string(std::getenv("HOME"))+ "/.config/piso.temp";
+    std::cout << config;
+  if (!exists(config)) {
     std::string temp_file;
-    text_in_red("please provide a template file");
+    text_in_red("please provide a template file\n");
     std::cin >> temp_file;
-    std::fstream temp("~/.config/piso.temp", std::ios::app);
-    temp << temp_file;
+    std::fstream temp(config, std::ios::app);
+    if(temp.is_open()){
+	temp << temp_file;
+    }
+    temp.close();
     return temp_file;
   }
   else{
-    std::fstream temp("~/.config/piso.temp", std::ios::app);
+    std::fstream temp(config, std::ios::app);
     std::string temp_file;
     if (temp.is_open()) {
       temp >> temp_file;
