@@ -17,28 +17,46 @@ namespace fs = std::filesystem;
 
 int setup();
 int feed(std ::string input_file);
-int compile(std ::string file_name);
+int compile(std ::string file_name); // feeds input to program
 std::string fetchHTML(const std::string &url);
 void parseHTML(const std::string &html, std::vector<std::string> &inputs,
-               std::vector<std::string> &outputs);
-void searchForTestCases(GumboNode *node, std::vector<std::string> &inputs,
-                        std::vector<std::string> &outputs);
-bool exists(std ::string file_name);
-void check_json_config();
-void text_in_red(std::string s) ;
+               std::vector<std::string> &outputs,
+               std::vector<std::string> &title);
+void searchForTestCases(
+    GumboNode *node, std::vector<std::string> &inputs,
+    std::vector<std::string> &outputs);     // search for test cases
+bool exists(std ::string file_name);        // check if file exists
+void check_json_config();                   // check if config file exists
+void text_in_red(std::string s);            // cout text in red
+std::string setup_problem(std::string url); // setup problem and json
+std ::string get_temp();                    // gets the template file
 
+std::fstream config_file(CONFIG_FILE, std::ios::app);
 int main(int argc, char *argv[]) {
-  enum Mode { Create, Exists, Setup };
+  program problem;
+  enum Mode { Create, Exists, Setup, Excution };
   Mode mode = (Mode)setup();
   std::cout << mode;
   while (true) {
     switch (mode) {
     case Create: {
-      program problem;
-      std::ifstream config_file(CONFIG_FILE);
       std::cout << "please enter the problem url" << std::endl;
       std::cin >> problem.url;
+      std::string title = setup_problem(problem.url);
+      problem.file_name = title;
+      problem.input_file = title + ".in";
+      problem.outpu_file = title + ".out";
+      std::cout << title << std::endl;
+      mode = Excution;
+      break;
     }
+    case Exists: {
+    }
+    case Setup: {
+    }
+    case Excution: {
+      return 1;
+    } break;
     }
   }
 }
@@ -55,7 +73,7 @@ int setup() {
     if (x == 0 || x == 1)
       return x;
     else {
-	text_in_red("please enter a valid number\n");
+      text_in_red("please enter a valid number\n");
     }
   }
 }
@@ -149,7 +167,15 @@ void extract_text_from_node(GumboNode *node,
         gumbo_get_attribute(&node->v.element.attributes, "class");
     if (classAttr && std::string(classAttr->value) == "title") {
       // Skip this node and its children
-      return;
+      if (node->parent) {
+        GumboAttribute *parentClassAttr =
+            gumbo_get_attribute(&node->parent->v.element.attributes, "class");
+        if (parentClassAttr &&
+            std::string(parentClassAttr->value) != "header") {
+          // Skip this node and its children
+          return;
+        }
+      }
     }
     const GumboVector *children = &node->v.element.children;
     for (unsigned int i = 0; i < children->length; ++i) {
@@ -183,11 +209,51 @@ void search_for_text(GumboNode *node, std::vector<std::string> &results,
 }
 
 void parseHTML(const std::string &html, std::vector<std::string> &inputs,
-               std::vector<std::string> &outputs) {
+               std::vector<std::string> &outputs,
+               std::vector<std::string> &title) {
   GumboOutput *output = gumbo_parse(html.c_str());
+  search_for_text(output->root, title, "title");
   search_for_text(output->root, inputs, "input");
   search_for_text(output->root, outputs, "output");
 }
+std::string setup_problem(std::string url) {
+  std::vector<std::string> inputs, outputs, title;
+  std::string html = fetchHTML(url);
+  parseHTML(html, inputs, outputs, title);
+  if (title.size() != 0) {
+    std::fstream in(title[0] + ".in", std::ios::app);
+    std::fstream out(title[0] + ".out", std::ios::app);
+
+    for (auto i : inputs) {
+      in << i << "\n";
+    };
+    for (auto o : outputs) {
+      out << o << "\n";
+    };
+    return title[0];
+    ;
+  }
+  return "";
+}
+std ::string get_temp() {
+  if (!exists("~/.config/piso.temp")) {
+    std::string temp_file;
+    text_in_red("please provide a template file");
+    std::cin >> temp_file;
+    std::fstream temp("~/.config/piso.temp", std::ios::app);
+    temp << temp_file;
+    return temp_file;
+  }
+  else{
+    std::fstream temp("~/.config/piso.temp", std::ios::app);
+    std::string temp_file;
+    if (temp.is_open()) {
+      temp >> temp_file;
+    }
+    return temp_file;
+  }
+}
+
 void text_in_red(std::string s) {
   std::cout << "\033[1;31m";
   std::cout << s;
