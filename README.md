@@ -6,6 +6,7 @@ an automation c++ program for case testing from CodeForces questions
     - `https://terminalroot.com/using-curl-with-cpp/`   a good tutorial
 - gumbo : is a C++ library for parsing HTML in C++ 
     - `https://www.scrapingbee.com/blog/web-scraping-c++/`   a good tutorial
+- nlohmann::json : is a header-only C++ JSON library
 
 ### learned 
 - how to use curl in c++
