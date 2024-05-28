@@ -7,8 +7,13 @@ an automation c++ program for case testing from CodeForces questions
 - gumbo : is a C++ library for parsing HTML in C++ 
     - `https://www.scrapingbee.com/blog/web-scraping-c++/`   a good tutorial
 
+### learned 
+- how to use curl in c++
+- how to use gumbo in c++
+- more about pipes 
+- how to redirect output from stdout to file and return it back 
 ### usage 
-#### compile
+##### compile
 ```
 g++ main.cpp -o psio -lcurl 
 ```

@@ -6,6 +6,7 @@
 #include <gumbo.h>
 #include <iostream>
 #include <sstream>
+#include <unistd.h>
 #include <vector>
 
 int feed(std ::string input_file);
@@ -41,12 +42,14 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < outputs.size(); i++) {
     std::cout << outputs[i] << "out" << std::endl;
   }
+  compile(cpp_file);
+  feed(input_file);
   return 0;
 }
 
 int compile(std ::string file_name) {
-
-  std::string compile_command = "g++ " + file_name + " -o " + output_exe;
+  std::string compile_command =
+      "g++ " + file_name + " -o " + output_exe; // compile the file
   if (system(compile_command.c_str()) != 0) {
     std::cerr << "Compilation failed" << std::endl;
     return -1;
@@ -54,6 +57,12 @@ int compile(std ::string file_name) {
   return 1;
 }
 int feed(std ::string input_file) {
+  int fd;
+  fpos_t pos;
+  fflush(stdout);
+  fgetpos(stdout, &pos);
+  fd = dup(fileno(stdout));
+  freopen("out.out", "w", stdout);
   // Read the input text file
   std::ifstream input(input_file);
   if (!input) {
@@ -74,6 +83,13 @@ int feed(std ::string input_file) {
 
   fwrite(input_content.c_str(), 1, input_content.size(), pipe);
   pclose(pipe);
+  // Restore stdout to its original destination
+  fflush(stdout);
+  dup2(fd, fileno(stdout));
+  close(fd);
+  clearerr(stdout);
+  fsetpos(stdout, &pos);
+  std::cout << "hello" << std::endl;
   return 1;
 }
 
@@ -110,39 +126,47 @@ std::string fetchHTML(const std::string &url) {
   }
   return htmlContent;
 }
-void extract_text_from_node(GumboNode* node, std::vector<std::string>& results) {
-    if (node->type == GUMBO_NODE_TEXT ) {
-        results.push_back(node->v.text.text);
-    } else if (node->type == GUMBO_NODE_ELEMENT || node->type == GUMBO_NODE_DOCUMENT) {
-	GumboAttribute* classAttr = gumbo_get_attribute(&node->v.element.attributes, "class");
-        if (classAttr && std::string(classAttr->value) == "title") {
-            // Skip this node and its children
-            return;
-        }
-        const GumboVector* children = &node->v.element.children;
-        for (unsigned int i = 0; i < children->length; ++i) {
-            extract_text_from_node(static_cast<GumboNode*>(children->data[i]), results);
-        }
+void extract_text_from_node(GumboNode *node,
+                            std::vector<std::string> &results) {
+  if (node->type == GUMBO_NODE_TEXT) {
+    results.push_back(node->v.text.text);
+  } else if (node->type == GUMBO_NODE_ELEMENT ||
+             node->type == GUMBO_NODE_DOCUMENT) {
+    GumboAttribute *classAttr =
+        gumbo_get_attribute(&node->v.element.attributes, "class");
+    if (classAttr && std::string(classAttr->value) == "title") {
+      // Skip this node and its children
+      return;
     }
+    const GumboVector *children = &node->v.element.children;
+    for (unsigned int i = 0; i < children->length; ++i) {
+      extract_text_from_node(static_cast<GumboNode *>(children->data[i]),
+                             results);
+    }
+  }
 }
 
 // Function to search for the div with class "philo" and extract all text
-void search_for_text(GumboNode* node, std::vector<std::string>& results , std:: string tag_name) {
-    if (node->type != GUMBO_NODE_ELEMENT) return;
-    GumboAttribute* classAttr;
-    if (node->v.element.tag == GUMBO_TAG_DIV &&
-        (classAttr = gumbo_get_attribute(&node->v.element.attributes, "class")) &&
-        std::string(classAttr->value) == tag_name) {
+void search_for_text(GumboNode *node, std::vector<std::string> &results,
+                     std::string tag_name) {
+  if (node->type != GUMBO_NODE_ELEMENT)
+    return;
+  GumboAttribute *classAttr;
+  if (node->v.element.tag == GUMBO_TAG_DIV &&
+      (classAttr = gumbo_get_attribute(&node->v.element.attributes, "class")) &&
+      std::string(classAttr->value) == tag_name) {
 
-        // Extract text from this node and all its children
-        extract_text_from_node(node, results);
-        return;  // No need to continue searching, assuming only one "philo" div is targeted
-    }
+    // Extract text from this node and all its children
+    extract_text_from_node(node, results);
+    return; // No need to continue searching, assuming only one "philo" div is
+            // targeted
+  }
 
-    const GumboVector* children = &node->v.element.children;
-    for (unsigned int i = 0; i < children->length; ++i) {
-        search_for_text(static_cast<GumboNode*>(children->data[i]), results, tag_name);
-    }
+  const GumboVector *children = &node->v.element.children;
+  for (unsigned int i = 0; i < children->length; ++i) {
+    search_for_text(static_cast<GumboNode *>(children->data[i]), results,
+                    tag_name);
+  }
 }
 
 void parseHTML(const std::string &html, std::vector<std::string> &inputs,
