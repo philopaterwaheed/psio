@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <gumbo.h>
+#include <ios>
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
@@ -35,8 +36,7 @@ std::fstream config_file(CONFIG_FILE, std::ios::app);
 int main(int argc, char *argv[]) {
   program problem;
   enum Mode { Create, Exists, Setup, Excution };
-  Mode mode = (Mode)setup();
-  std::cout << mode;
+  Mode mode = Setup;
   while (true) {
     switch (mode) {
     case Create: {
@@ -53,10 +53,12 @@ int main(int argc, char *argv[]) {
     case Exists: {
     }
     case Setup: {
+      mode = (Mode)setup();
+      break;
     }
     case Excution: {
       return 1;
-    } break;
+    }
     }
   }
 }
@@ -120,7 +122,6 @@ int feed(std ::string input_file, std::string output_exe) {
   close(fd);
   clearerr(stdout);
   fsetpos(stdout, &pos);
-  std::cout << "hello" << std::endl;
   return 1;
 }
 
@@ -221,8 +222,8 @@ std::string setup_problem(std::string url) {
   std::string html = fetchHTML(url);
   parseHTML(html, inputs, outputs, title);
   if (title.size() != 0) {
-    std::fstream in(title[0] + ".in", std::ios::app);
-    std::fstream out(title[0] + ".out", std::ios::app);
+    std::ofstream in(title[0] + ".In");
+    std::ofstream out(title[0] + ".Out");
 
     for (auto i : inputs) {
       in << i << "\n";
@@ -230,13 +231,13 @@ std::string setup_problem(std::string url) {
     for (auto o : outputs) {
       out << o << "\n";
     };
-    std::string source = get_temp();// get the template file 
-    std::string destination = title[0]+".cpp"; // creating the source file
+    std::string source = get_temp();             // get the template file
+    std::string destination = title[0] + ".cpp"; // creating the source file
     try {
-        fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
-        std::cout << "Template copied successfully." << std::endl;
-    } catch (fs::filesystem_error& e) {
-        std::cerr << "Error copying template: " << e.what() << std::endl;
+      fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
+      std::cout << "Template copied successfully." << std::endl;
+    } catch (fs::filesystem_error &e) {
+      std::cerr << "Error copying template: " << e.what() << std::endl;
     }
     return title[0];
     ;
@@ -244,24 +245,29 @@ std::string setup_problem(std::string url) {
   return "";
 }
 std ::string get_temp() {
-    std:: string config =std::string(std::getenv("HOME"))+ "/.config/piso.temp";
-    std::cout << config;
+  std::string config = std::string(std::getenv("HOME")) + "/.config/psio.temp";
   if (!exists(config)) {
     std::string temp_file;
     text_in_red("please provide a template file\n");
     std::cin >> temp_file;
     std::fstream temp(config, std::ios::app);
-    if(temp.is_open()){
-	temp << temp_file;
+    if (temp.is_open()) {
+      temp << temp_file;
     }
     temp.close();
     return temp_file;
-  }
-  else{
-    std::fstream temp(config, std::ios::app);
+  } else {
+    std::ifstream temp(config);
     std::string temp_file;
     if (temp.is_open()) {
-      temp >> temp_file;
+      if (std::getline(temp, temp_file)) {
+        return temp_file;
+      } else {
+        std::cerr << "Error reading temp_file" << std::endl;
+      }
+      temp.close();
+    } else {
+      std::cerr << "Error opening file." << std::endl;
     }
     return temp_file;
   }
