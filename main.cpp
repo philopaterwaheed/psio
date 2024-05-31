@@ -15,6 +15,7 @@
 
 #define CONFIG_FILE ".psioConfig.json"
 namespace fs = std::filesystem;
+enum Mode { Create, Exists, Setup, Execution, Clear };
 
 int setup();
 int feed(std ::string input_file);
@@ -36,13 +37,16 @@ void output_to_json(program *problem);
 bool is_empty(const std::string &filename); // check if file is empty
 bool exists_in_json(const std::string &problem_name, nlohmann::json &jsonArray);
 inline std::string remove_spaces(std::string s);
-inline bool valid_link(const std::string &link);
+inline bool is_valid_link(const std::string &link);
+Mode chose_from_json(std::string title);
+bool find_problem_by_title(const std::string &title,
+                           const nlohmann::json &jsonArray,
+                           nlohmann::json &result);
 
 std::fstream config_file(CONFIG_FILE, std::ios::app);
-enum Mode { Create, Exists, Setup, Execution, Clear, Repair };
+program *problem = new program;
 
 int main(int argc, char *argv[]) {
-  program *problem = new program;
   Mode mode = Setup;
   while (true) {
     switch (mode) {
@@ -54,7 +58,7 @@ int main(int argc, char *argv[]) {
       text_in_green("Entering Create mode\n");
       std::cout << "please enter the problem url" << std::endl;
       std::cin >> problem->url;
-      if (!valid_link(problem->url)) { // check if valid link (problem->url){
+      if (!is_valid_link(problem->url)) { // check if valid link (problem->url){
         text_in_red(problem->url + " is an invalid url\n");
         mode = Clear;
         break;
@@ -132,7 +136,7 @@ int setup() {
   }
 }
 
-inline bool valid_link(const std::string &link) {
+inline bool is_valid_link(const std::string &link) {
   return (!(link.size() >= 65) ||
           link.find("http://codeforces.com/problemset/problem") !=
               std::string::npos ||
@@ -377,6 +381,61 @@ bool exists_in_json(const std::string &problem_name,
                     nlohmann::json &jsonArray) {
   for (const auto &item : jsonArray) {
     if (item.contains("title") && item["title"] == problem_name) {
+      return true;
+    }
+  }
+  return false;
+}
+Mode chose_from_json(std::string title) {
+  std::ifstream config_file(CONFIG_FILE);
+  nlohmann::json jsonArray;
+
+  if (config_file.is_open()) {
+    try {
+      config_file >> jsonArray;
+      config_file.close();
+    } catch (const nlohmann::json::parse_error &e) {
+      text_in_red("Parse error: " + std::string(e.what()));
+      config_file.close();
+      text_in_red("please enter create mode to fix");
+      return Setup;
+    }
+  } else {
+    text_in_red("Error opening config file for reading");
+    // when there is no file
+    return Setup;
+  }
+  nlohmann::json result;
+  if (find_problem_by_title(title, jsonArray, result)) {
+    if (result["title"] == "" || result["input"] == "" ||
+        result["output"] == "") {
+      if (is_valid_link(result["url"])) {
+        text_in_red("invalid data in json");
+        text_in_green("uerl is correct\n");
+        setup_problem(result["url"]);
+      }
+      else {
+        text_in_red("invalid data and  url in json\n");
+        text_in_red("please enter create mode to fix");
+        return Setup;
+      }
+    }
+    text_in_green("Found problem: " + title + "\n");
+    problem->file_name = result["title"];
+    problem->input_file = result["input"];
+    problem->output_file = result["output"];
+    return Execution;
+  } else {
+    text_in_red("Problem not found.\n");
+    return Create;
+  }
+}
+bool find_problem_by_title(const std::string &title,
+                           const nlohmann::json &jsonArray,
+                           nlohmann::json &result) {
+  for (const auto &item : jsonArray) {
+    if (item.contains("title") && item["title"] == title) {
+      result = item;
       return true;
     }
   }
