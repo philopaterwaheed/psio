@@ -20,9 +20,9 @@ int setup();
 int feed(std ::string input_file);
 int compile(std ::string file_name); // feeds input to program
 std::string fetchHTML(const std::string &url);
-void parseHTML(const std::string &html, std::vector<std::string> &inputs,
-               std::vector<std::string> &outputs,
-               std::vector<std::string> &title);
+void parse_HTML(const std::string &html, std::vector<std::string> &inputs,
+                std::vector<std::string> &outputs,
+                std::vector<std::string> &title);
 void searchForTestCases(
     GumboNode *node, std::vector<std::string> &inputs,
     std::vector<std::string> &outputs);     // search for test cases
@@ -36,6 +36,7 @@ void output_to_json(program *problem);
 bool is_empty(const std::string &filename); // check if file is empty
 bool exists_in_json(const std::string &problem_name, nlohmann::json &jsonArray);
 inline std::string remove_spaces(std::string s);
+inline bool valid_link(const std::string &link);
 
 std::fstream config_file(CONFIG_FILE, std::ios::app);
 enum Mode { Create, Exists, Setup, Execution, Clear };
@@ -52,6 +53,12 @@ int main(int argc, char *argv[]) {
     case Create: {
       std::cout << "please enter the problem url" << std::endl;
       std::cin >> problem->url;
+      if (!valid_link(problem->url)) { // check if valid link (problem->url){
+        text_in_red(problem->url + " is an invalid url\n");
+        mode = Clear;
+        break;
+      }
+
       std::string title = setup_problem(problem->url);
       if (title == "") {
         text_in_red("could not setup problem\n");
@@ -67,6 +74,7 @@ int main(int argc, char *argv[]) {
       break;
     }
     case Exists: {
+      text_in_green("Entring Exists mode\n");
       break;
     }
     case Execution: {
@@ -123,6 +131,13 @@ int setup() {
   }
 }
 
+inline bool valid_link(const std::string &link) {
+  return (!(link.size() >= 65) ||
+          link.find("http://codeforces.com/problemset/problem") !=
+              std::string::npos ||
+          link.find("https://codeforces.com/gym/") != std::string::npos ||
+          link.find("https://codeforces.com/contest/") != std::string::npos);
+}
 int compile(std ::string file_name, std::string output_exe) {
   std::string compile_command =
       "g++ " + file_name + " -o " + output_exe; // compile the file
@@ -252,9 +267,9 @@ void search_for_text(GumboNode *node, std::vector<std::string> &results,
   }
 }
 
-void parseHTML(const std::string &html, std::vector<std::string> &inputs,
-               std::vector<std::string> &outputs,
-               std::vector<std::string> &title) {
+void parse_HTML(const std::string &html, std::vector<std::string> &inputs,
+                std::vector<std::string> &outputs,
+                std::vector<std::string> &title) {
   GumboOutput *output = gumbo_parse(html.c_str());
   search_for_text(output->root, title, "title");
   search_for_text(output->root, inputs, "input");
@@ -263,7 +278,7 @@ void parseHTML(const std::string &html, std::vector<std::string> &inputs,
 std::string setup_problem(std::string url) {
   std::vector<std::string> inputs, outputs, title;
   std::string html = fetchHTML(url);
-  parseHTML(html, inputs, outputs, title);
+  parse_HTML(html, inputs, outputs, title);
   if (title.size() != 0) {
     std::ofstream in(title[0] + ".In");
     std::ofstream out(title[0] + ".Out");
