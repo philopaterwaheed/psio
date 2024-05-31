@@ -49,6 +49,7 @@ bool find_problem_by_title(const std::string &title,
                            const nlohmann::json &jsonArray,
                            nlohmann::json &result);
 
+std::vector<std::string> collect_inputs_from_file(std::string input_file);
 std::fstream config_file(CONFIG_FILE, std::ios::app);
 program *problem = new program;
 
@@ -121,10 +122,13 @@ int main(int argc, char *argv[]) {
           }
           case 1: {
             mode = Create;
+            check = false;
             break;
           }
           case 2: {
             mode = Exists;
+            check = false;
+            break;
           }
           default: {
             text_in_red("please enter a valid number\n");
@@ -219,25 +223,22 @@ int feed(std ::string input_file, std::string output_exe) {
   fd = dup(fileno(stdout));
   freopen("psio.output", "w", stdout);
   // Read the input text file
-  std::ifstream input(input_file);
-  if (!input) {
-    text_in_red("Failed to open input file\n");
-    return -1;
-  }
-  std::stringstream input_buffer;
-  input_buffer << input.rdbuf();
-  std::string input_content = input_buffer.str();
-
+  auto inputs = collect_inputs_from_file(input_file);
   // Run the compiled executable with input from the text file
-  std::string run_command = std::string("./") + output_exe;
-  FILE *pipe = popen(run_command.c_str(), "w");
-  if (!pipe) {
-    text_in_red("Failed to run the compiled program\n");
-    return -1;
-  }
+  //
 
-  fwrite(input_content.c_str(), 1, input_content.size(), pipe);
-  pclose(pipe);
+  for (auto input_content : inputs) { // feed the input
+    std::cout <<"psio---";
+    std::string run_command = std::string("./") + output_exe;
+    FILE *pipe = popen(run_command.c_str(), "w");
+    if (!pipe) {
+      text_in_red("Failed to run the compiled program\n");
+      return -1;
+    }
+
+    fwrite(input_content.c_str(), 1, input_content.size(), pipe);
+    pclose(pipe);
+  }
   // Restore stdout to its original destination
   fflush(stdout);
   dup2(fd, fileno(stdout));
@@ -299,6 +300,7 @@ std::string fetchHTML(const std::string &url) {
     res = curl_easy_perform(curl);  // getting response
     curl_easy_cleanup(curl);        // cleaning up
   }
+  std:: cout << htmlContent << std::endl;
   return htmlContent;
 }
 void extract_text_from_node(GumboNode *node,
@@ -341,7 +343,7 @@ void search_for_text(GumboNode *node, std::vector<std::string> &results,
 
     // Extract text from this node and all its children
     if (results.size() != 0) {
-	results.push_back("psio---");
+      results.push_back("psio---");
     }
     extract_text_from_node(node, results);
     return; // No need to continue searching, assuming only one "philo" div is
@@ -374,10 +376,10 @@ std::string setup_problem(std::string url) {
     std::ofstream out(remove_spaces(title[0] + ".Out"));
 
     for (auto i : inputs) {
-      in << i<<"\n";
+      in << i << "\n";
     };
     for (auto o : outputs) {
-      out << o<<"\n";
+      out << o << "\n";
     };
     std::string source = get_temp(); // get the template file
     std::string destination =
@@ -531,6 +533,31 @@ bool find_problem_by_title(const std::string &title,
     }
   }
   return false;
+}
+std::vector<std::string> collect_inputs_from_file(std::string input_file) {
+  std::vector<std::string> inputs;
+  std::string input = "";
+  std::string temp;
+  std::ifstream file(input_file);
+  if (!file) {
+    text_in_red("Failed to open input file\n");
+    return {};
+  }
+  if (file.is_open()) {
+    while (getline(file, temp)) {
+      if (temp != "psio---")
+        input += "\n" + (temp);
+      else {
+        inputs.push_back(input);
+        input.clear();
+      }
+    }
+    if (input.size() > 0) {
+      inputs.push_back(input);
+    }
+    file.close();
+  }
+  return inputs;
 }
 inline void text_in_red(std::string s) {
   std::cerr << "\033[1;31m";
