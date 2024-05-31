@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <vector>
 
-#define CONFIG_FILE ".config.json"
+#define CONFIG_FILE ".psioConfig.json"
 namespace fs = std::filesystem;
 
 int setup();
@@ -28,44 +28,73 @@ void searchForTestCases(
     std::vector<std::string> &outputs);     // search for test cases
 bool exists(std ::string file_name);        // check if file exists
 void check_json_config();                   // check if config file exists
-void text_in_red(std::string s);            // cout text in red
+inline void text_in_red(std::string s);     // cout text in red
+inline void text_in_green(std::string s);   // text in green for info
 std::string setup_problem(std::string url); // setup problem and json
 std ::string get_temp();                    // gets the template file
+void output_to_json(program *problem);
+bool is_empty(const std::string &filename); // check if file is empty
+bool exists_in_json(const std::string &problem_name, nlohmann::json &jsonArray);
+inline std::string remove_spaces(std::string s);
 
 std::fstream config_file(CONFIG_FILE, std::ios::app);
+
 int main(int argc, char *argv[]) {
-  program problem;
-  enum Mode { Create, Exists, Setup, Excution };
+  program *problem = new program;
+  enum Mode { Create, Exists, Setup, Excution, Clear };
   Mode mode = Setup;
   while (true) {
     switch (mode) {
+    case Setup: {
+      mode = (Mode)setup();
+      break;
+    }
     case Create: {
       std::cout << "please enter the problem url" << std::endl;
-      std::cin >> problem.url;
-      std::string title = setup_problem(problem.url);
-      problem.file_name = title;
-      problem.input_file = title + ".in";
-      problem.outpu_file = title + ".out";
-      std::cout << title << std::endl;
+      std::cin >> problem->url;
+      std::string title = setup_problem(problem->url);
+      if (title == "") {
+        text_in_red("could not setup problem\n");
+        mode = Clear;
+        break;
+      }
+      title = remove_spaces(title);
+      problem->file_name = title + ".cpp";
+      problem->input_file = title + ".In";
+      problem->output_file = title + ".Out";
+      output_to_json(problem);
       mode = Excution;
       break;
     }
     case Exists: {
     }
-    case Setup: {
-      mode = (Mode)setup();
-      break;
-    }
     case Excution: {
       return 1;
+    }
+    Clear: { // clear everything about the problem
+	delete problem;
+	problem = new program();
+	mode = Setup;
+    }
+    default: {
+      break;
     }
     }
   }
 }
+bool is_empty(const std::string &filename) { // check if file is empty
+  std::ifstream file(filename, std::ios::binary | std::ios::ate);
+  if (!file.is_open()) {
+    text_in_red("Error opening file: " + filename);
+    return false;
+  }
+
+  return file.tellg() == 0;
+}
 
 bool exists(std ::string file_name) { return fs::exists(file_name); }
 int setup() {
-  std::cout << "psio test runner" << std::endl;
+  text_in_green("psio test runner\n");
   while (true) {
     std::cout << "please enter the mode you want to run" << std::endl;
     std::cout << " please enter 0 for create" << std::endl
@@ -84,7 +113,7 @@ int compile(std ::string file_name, std::string output_exe) {
   std::string compile_command =
       "g++ " + file_name + " -o " + output_exe; // compile the file
   if (system(compile_command.c_str()) != 0) {
-    std::cerr << "Compilation failed" << std::endl;
+    text_in_red("Compilation failed\n");
     return -1;
   }
   return 1;
@@ -99,7 +128,7 @@ int feed(std ::string input_file, std::string output_exe) {
   // Read the input text file
   std::ifstream input(input_file);
   if (!input) {
-    std::cerr << "Failed to open input file" << std::endl;
+    text_in_red("Failed to open input file\n");
     return -1;
   }
   std::stringstream input_buffer;
@@ -110,7 +139,7 @@ int feed(std ::string input_file, std::string output_exe) {
   std::string run_command = std::string("./") + output_exe;
   FILE *pipe = popen(run_command.c_str(), "w");
   if (!pipe) {
-    std::cerr << "Failed to run the compiled program" << std::endl;
+    text_in_red("Failed to run the compiled program\n");
     return -1;
   }
 
@@ -226,18 +255,18 @@ std::string setup_problem(std::string url) {
     std::ofstream out(title[0] + ".Out");
 
     for (auto i : inputs) {
-      in << i << "\n";
+      in << i << "\npsio ----\n";
     };
     for (auto o : outputs) {
-      out << o << "\n";
+      out << o << "\npsio ----\n";
     };
     std::string source = get_temp();             // get the template file
     std::string destination = title[0] + ".cpp"; // creating the source file
     try {
       fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
-      std::cout << "Template copied successfully." << std::endl;
+      text_in_green("Template copied successfully.\n");
     } catch (fs::filesystem_error &e) {
-      std::cerr << "Error copying template: " << e.what() << std::endl;
+      text_in_red("Error copying template: " + std::string(e.what()) + '\n');
     }
     return title[0];
     ;
@@ -245,36 +274,98 @@ std::string setup_problem(std::string url) {
   return "";
 }
 std ::string get_temp() {
-  std::string config = std::string(std::getenv("HOME")) + "/.config/psio.temp";
-  if (!exists(config)) {
+  std::string global_config =
+      std::string(std::getenv("HOME")) +
+      "/.config/psio.temp"; // the global config file of psio
+  if (!exists(global_config)) {
     std::string temp_file;
     text_in_red("please provide a template file\n");
     std::cin >> temp_file;
-    std::fstream temp(config, std::ios::app);
+    std::fstream temp(global_config, std::ios::app);
     if (temp.is_open()) {
       temp << temp_file;
     }
     temp.close();
     return temp_file;
   } else {
-    std::ifstream temp(config);
+    std::ifstream temp(global_config);
     std::string temp_file;
     if (temp.is_open()) {
       if (std::getline(temp, temp_file)) {
         return temp_file;
       } else {
-        std::cerr << "Error reading temp_file" << std::endl;
+        text_in_red("Error reading temp_file\n");
       }
       temp.close();
     } else {
-      std::cerr << "Error opening file." << std::endl;
+      text_in_red("Error opening file.\n");
     }
     return temp_file;
   }
 }
 
-void text_in_red(std::string s) {
-  std::cout << "\033[1;31m";
+void output_to_json(program *problem) { // output problem to json
+  nlohmann::json array_of_problems;     // array of problems in the file
+  std::ifstream jsonFile(CONFIG_FILE);  // get the problems config file
+  nlohmann::json problem_json;          // create json object for the problem
+  problem_json["title"] = problem->file_name;
+  problem_json["input"] = problem->input_file;
+  problem_json["output"] = problem->output_file;
+  problem_json["url"] = problem->url;
+  if (!is_empty(CONFIG_FILE)) { // if there are problems
+    if (config_file.is_open()) {
+      array_of_problems = nlohmann::json::parse(jsonFile);
+    } else {
+      text_in_red("Error opening file for reading\n");
+      return;
+    }
+    if (exists_in_json(problem->file_name, array_of_problems)) {
+      text_in_red("Problem already exists in JSON. Not adding.\n");
+      // todo add validation
+      return;
+    } else {
+      array_of_problems.push_back(problem_json);
+      std::ofstream json_out(
+          CONFIG_FILE); // overwrite existing json and add updated version
+      json_out << array_of_problems.dump(4);
+      json_out.close();
+    }
+  } else {
+    std::ofstream json_out(CONFIG_FILE);
+    if (config_file.is_open()) {
+      array_of_problems.push_back(problem_json);
+      json_out << array_of_problems.dump(4);
+      json_out.close();
+    } else {
+      text_in_red("Error opening file for writing\n");
+    }
+  }
+}
+bool exists_in_json(const std::string &problem_name,
+                    nlohmann::json &jsonArray) {
+  for (const auto &item : jsonArray) {
+    if (item.contains("title") && item["title"] == problem_name) {
+      return true;
+    }
+  }
+  return false;
+}
+inline void text_in_red(std::string s) {
+  std::cerr << "\033[1;31m";
+  std::cerr << s;
+  std::cerr << "\033[0m";
+}
+inline void text_in_green(std::string s) {
+  std::cout << "\033[1;32m";
   std::cout << s;
   std::cout << "\033[0m";
+}
+inline std::string remove_spaces(std::string s) {
+  std::string result;
+  for (auto &c : s) {
+    if (c != ' ') {
+      result.push_back(c);
+    }
+  }
+  return result;
 }
