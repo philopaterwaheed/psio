@@ -1,15 +1,18 @@
 #include "json.hpp"
 #include "program.hpp"
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <curl/curl.h>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <gumbo.h>
 #include <ios>
 #include <iostream>
 #include <sstream>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -19,7 +22,10 @@ enum Mode { Create, Exists, Setup, Execution, Clear };
 
 int setup();
 int feed(std ::string input_file);
-int compile(std ::string file_name); // feeds input to program
+bool run_with_timeout(const std::string &input_file,
+                      const std::string &output_exe, int timeout_seconds);
+int compile(std ::string file_name,
+            std::string output_exe); // feeds input to program
 std::string fetchHTML(const std::string &url);
 void parse_HTML(const std::string &html, std::vector<std::string> &inputs,
                 std::vector<std::string> &outputs,
@@ -82,15 +88,64 @@ int main(int argc, char *argv[]) {
       text_in_green("Entering Exists mode\n");
       std::cout << "please enter the file name" << std::endl;
       std::string title;
+      std::cin >> title;
       mode = chose_from_json(title);
       break;
     }
     case Execution: {
       text_in_green("Entering Execution mode\n");
-      return 1;
+      // additional check
+      if (!exists(problem->input_file) || !exists(problem->output_file) ||
+          !exists(problem->file_name)) {
+        text_in_red("One or more files are missing\n");
+        mode = Clear;
+      } else {
+        if (compile(problem->file_name, "psio.out")) {
+          run_with_timeout(problem->input_file, "psio.out", 5);
+        }
+      }
+      text_in_green("Done\n");
+      text_in_green("Do you want to run again?\n");
+      bool check = true;
+      while (check) {
+        std::cout << "please enter 0 for retest" << std::endl;
+        std::cout << "please enter 1 for create" << std::endl
+                  << "please enter 2 for exists" << std::endl;
+        int x = -1;
+
+        if (std::cin >> x) {
+          switch (x) {
+          case 0: {
+            check = false;
+            break;
+          }
+          case 1: {
+            mode = Create;
+            break;
+          }
+          case 2: {
+            mode = Exists;
+          }
+          default: {
+            text_in_red("please enter a valid number\n");
+            break;
+          }
+          }
+        } else {
+          // Clear the error flag on cin
+          std::cin.clear();
+          // Ignore the invalid input
+          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          text_in_red("not a number\n");
+          return Mode::Setup; // clear mode
+        }
+      }
+
+      break;
     }
+
     case Clear: { // clear everything about the problem
-      text_in_red("resetting beacuse of a fault\n");
+      text_in_red("resetting beacuse of a fault or choosing a new problem\n");
       delete problem;
       problem = new program();
       mode = Setup;
@@ -147,11 +202,12 @@ inline bool is_valid_link(const std::string &link) {
           link.find("https://codeforces.com/contest/") != std::string::npos);
 }
 int compile(std ::string file_name, std::string output_exe) {
+  text_in_green("compiling\n");
   std::string compile_command =
       "g++ " + file_name + " -o " + output_exe; // compile the file
   if (system(compile_command.c_str()) != 0) {
     text_in_red("Compilation failed\n");
-    return -1;
+    return 0;
   }
   return 1;
 }
@@ -161,7 +217,7 @@ int feed(std ::string input_file, std::string output_exe) {
   fflush(stdout);
   fgetpos(stdout, &pos);
   fd = dup(fileno(stdout));
-  freopen("out.out", "w", stdout);
+  freopen("psio.output", "w", stdout);
   // Read the input text file
   std::ifstream input(input_file);
   if (!input) {
@@ -189,6 +245,27 @@ int feed(std ::string input_file, std::string output_exe) {
   clearerr(stdout);
   fsetpos(stdout, &pos);
   return 1;
+}
+// Function to run `feed` in a separate thread and enforce a timeout
+bool run_with_timeout(const std::string &input_file,
+                      const std::string &output_exe, int timeout_seconds) {
+  std::packaged_task<int()> task(
+      [input_file, output_exe]() { return feed(input_file, output_exe); });
+  // asynic function
+
+  std::future<int> result = task.get_future();
+  std::thread(std::move(task)).detach();
+
+  if (result.wait_for(std::chrono::seconds(timeout_seconds)) ==
+      std::future_status::timeout) {
+    text_in_red("Function execution exceeded timeout of : ");
+    std::cerr << timeout_seconds;
+    text_in_red(" seconds.\n");
+    return false;
+  }
+
+  int exit_code = result.get();
+  return exit_code == 1;
 }
 
 size_t WriteCallback(void *contents, size_t size, size_t nmemb,
@@ -252,7 +329,7 @@ void extract_text_from_node(GumboNode *node,
   }
 }
 
-// Function to search for the div with class "philo" and extract all text
+// Function to search for the div with class  and extract all text
 void search_for_text(GumboNode *node, std::vector<std::string> &results,
                      std::string tag_name) {
   if (node->type != GUMBO_NODE_ELEMENT)
@@ -263,6 +340,9 @@ void search_for_text(GumboNode *node, std::vector<std::string> &results,
       std::string(classAttr->value) == tag_name) {
 
     // Extract text from this node and all its children
+    if (results.size() != 0) {
+	results.push_back("psio---");
+    }
     extract_text_from_node(node, results);
     return; // No need to continue searching, assuming only one "philo" div is
             // targeted
@@ -290,17 +370,18 @@ std::string setup_problem(std::string url) {
   if (title.size() != 0 && inputs.size() != 0 &&
       outputs.size() !=
           0) { // if we got the inputs and outputs and the title correctly
-    std::ofstream in(title[0] + ".In");
-    std::ofstream out(title[0] + ".Out");
+    std::ofstream in(remove_spaces(title[0] + ".In"));
+    std::ofstream out(remove_spaces(title[0] + ".Out"));
 
     for (auto i : inputs) {
-      in << i << "\npsio ----\n";
+      in << i<<"\n";
     };
     for (auto o : outputs) {
-      out << o << "\npsio ----\n";
+      out << o<<"\n";
     };
-    std::string source = get_temp();             // get the template file
-    std::string destination = title[0] + ".cpp"; // creating the source file
+    std::string source = get_temp(); // get the template file
+    std::string destination =
+        remove_spaces(title[0]) + ".cpp"; // creating the source file
     try {
       fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
       text_in_green("Template copied successfully.\n");
@@ -426,11 +507,12 @@ Mode chose_from_json(std::string title) {
     problem->file_name = result["title"];
     problem->input_file = result["input"];
     problem->output_file = result["output"];
-    if (!exists(problem->input_file)||!exists(problem->output_file)||!exists(problem->file_name)) {
-	text_in_red("your files are missing\n");
-	text_in_green("setting up files\n");
-        setup_problem(problem->url);
-	text_in_green("files are ready\n");
+    if (!exists(problem->input_file) || !exists(problem->output_file) ||
+        !exists(problem->file_name)) {
+      text_in_red("your files are missing\n");
+      text_in_green("setting up files\n");
+      setup_problem(problem->url);
+      text_in_green("files are ready\n");
     }
     text_in_green("Problem: " + title + "is ready to be solved" + "\n");
     return Execution;

@@ -13,8 +13,11 @@ an automation c++ program for case testing from CodeForces questions
 - how to use gumbo in c++
 - more about pipes 
 - how to redirect output from stdout to file and return it back 
+- how to use nlohmann::json in c++
+- how to do async functions 
+- more knowledge about threads
 ### usage 
 ##### compile
 ```
-g++ main.cpp -o psio -lcurl -lgumbo 
+g++ main.cpp -o psio -lcurl -lgumbo -lpthread
 ```
