@@ -38,10 +38,10 @@ bool exists_in_json(const std::string &problem_name, nlohmann::json &jsonArray);
 inline std::string remove_spaces(std::string s);
 
 std::fstream config_file(CONFIG_FILE, std::ios::app);
+enum Mode { Create, Exists, Setup, Execution, Clear };
 
 int main(int argc, char *argv[]) {
   program *problem = new program;
-  enum Mode { Create, Exists, Setup, Excution, Clear };
   Mode mode = Setup;
   while (true) {
     switch (mode) {
@@ -63,18 +63,21 @@ int main(int argc, char *argv[]) {
       problem->input_file = title + ".In";
       problem->output_file = title + ".Out";
       output_to_json(problem);
-      mode = Excution;
+      mode = Execution;
       break;
     }
     case Exists: {
+      break;
     }
-    case Excution: {
+    case Execution: {
       return 1;
     }
-    Clear: { // clear everything about the problem
-	delete problem;
-	problem = new program();
-	mode = Setup;
+    case Clear: { // clear everything about the problem
+      text_in_red("clearing beacuse of a fault\n");
+      delete problem;
+      problem = new program();
+      mode = Setup;
+      break;
     }
     default: {
       break;
@@ -95,16 +98,27 @@ bool is_empty(const std::string &filename) { // check if file is empty
 bool exists(std ::string file_name) { return fs::exists(file_name); }
 int setup() {
   text_in_green("psio test runner\n");
+
   while (true) {
     std::cout << "please enter the mode you want to run" << std::endl;
-    std::cout << " please enter 0 for create" << std::endl
-              << " please enter 1 for exists" << std::endl;
-    int x;
-    std ::cin >> x;
-    if (x == 0 || x == 1)
-      return x;
-    else {
-      text_in_red("please enter a valid number\n");
+    std::cout << "please enter 0 for create" << std::endl
+              << "please enter 1 for exists" << std::endl;
+
+    int x = -1;
+
+    if (std::cin >> x) {
+      if (x == 0 || x == 1) {
+        return x;
+      } else {
+        text_in_red("please enter a valid number\n");
+      }
+    } else {
+      // Clear the error flag on cin
+      std::cin.clear();
+      // Ignore the invalid input
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      text_in_red("not a number\n");
+      return Mode::Setup; // clear mode
     }
   }
 }
