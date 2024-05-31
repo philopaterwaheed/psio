@@ -80,6 +80,9 @@ int main(int argc, char *argv[]) {
     }
     case Exists: {
       text_in_green("Entering Exists mode\n");
+      std::cout << "please enter the file name" << std::endl;
+      std::string title;
+      mode = chose_from_json(title);
       break;
     }
     case Execution: {
@@ -398,12 +401,12 @@ Mode chose_from_json(std::string title) {
       text_in_red("Parse error: " + std::string(e.what()));
       config_file.close();
       text_in_red("please enter create mode to fix");
-      return Setup;
+      return Clear;
     }
   } else {
     text_in_red("Error opening config file for reading");
     // when there is no file
-    return Setup;
+    return Clear;
   }
   nlohmann::json result;
   if (find_problem_by_title(title, jsonArray, result)) {
@@ -413,21 +416,27 @@ Mode chose_from_json(std::string title) {
         text_in_red("invalid data in json");
         text_in_green("uerl is correct\n");
         setup_problem(result["url"]);
-      }
-      else {
+      } else {
         text_in_red("invalid data and  url in json\n");
         text_in_red("please enter create mode to fix");
-        return Setup;
+        return Clear;
       }
     }
-    text_in_green("Found problem: " + title + "\n");
+
     problem->file_name = result["title"];
     problem->input_file = result["input"];
     problem->output_file = result["output"];
+    if (!exists(problem->input_file)||!exists(problem->output_file)||!exists(problem->file_name)) {
+	text_in_red("your files are missing\n");
+	text_in_green("setting up files\n");
+        setup_problem(problem->url);
+	text_in_green("files are ready\n");
+    }
+    text_in_green("Problem: " + title + "is ready to be solved" + "\n");
     return Execution;
   } else {
     text_in_red("Problem not found.\n");
-    return Create;
+    return Clear;
   }
 }
 bool find_problem_by_title(const std::string &title,
