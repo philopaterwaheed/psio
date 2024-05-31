@@ -39,7 +39,7 @@ inline std::string remove_spaces(std::string s);
 inline bool valid_link(const std::string &link);
 
 std::fstream config_file(CONFIG_FILE, std::ios::app);
-enum Mode { Create, Exists, Setup, Execution, Clear };
+enum Mode { Create, Exists, Setup, Execution, Clear, Repair };
 
 int main(int argc, char *argv[]) {
   program *problem = new program;
@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
       break;
     }
     case Create: {
+      text_in_green("Entering Create mode\n");
       std::cout << "please enter the problem url" << std::endl;
       std::cin >> problem->url;
       if (!valid_link(problem->url)) { // check if valid link (problem->url){
@@ -58,7 +59,6 @@ int main(int argc, char *argv[]) {
         mode = Clear;
         break;
       }
-
       std::string title = setup_problem(problem->url);
       if (title == "") {
         text_in_red("could not setup problem\n");
@@ -70,18 +70,20 @@ int main(int argc, char *argv[]) {
       problem->input_file = title + ".In";
       problem->output_file = title + ".Out";
       output_to_json(problem);
+      text_in_green("Files setup complete\n");
       mode = Execution;
       break;
     }
     case Exists: {
-      text_in_green("Entring Exists mode\n");
+      text_in_green("Entering Exists mode\n");
       break;
     }
     case Execution: {
+      text_in_green("Entering Execution mode\n");
       return 1;
     }
     case Clear: { // clear everything about the problem
-      text_in_red("clearing beacuse of a fault\n");
+      text_in_red("resetting beacuse of a fault\n");
       delete problem;
       problem = new program();
       mode = Setup;
@@ -99,7 +101,6 @@ bool is_empty(const std::string &filename) { // check if file is empty
     text_in_red("Error opening file: " + filename);
     return false;
   }
-
   return file.tellg() == 0;
 }
 
@@ -279,7 +280,9 @@ std::string setup_problem(std::string url) {
   std::vector<std::string> inputs, outputs, title;
   std::string html = fetchHTML(url);
   parse_HTML(html, inputs, outputs, title);
-  if (title.size() != 0) {
+  if (title.size() != 0 && inputs.size() != 0 &&
+      outputs.size() !=
+          0) { // if we got the inputs and outputs and the title correctly
     std::ofstream in(title[0] + ".In");
     std::ofstream out(title[0] + ".Out");
 
