@@ -14,6 +14,7 @@
 #include <sstream>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #define CONFIG_FILE ".psioConfig.json"
@@ -35,8 +36,9 @@ void searchForTestCases(
     std::vector<std::string> &outputs);     // search for test cases
 bool exists(std ::string file_name);        // check if file exists
 void check_json_config();                   // check if config file exists
-inline void text_in_red(std::string s);     // cout text in red
+inline void text_in_red(std::string s);     // cout text in red for errors
 inline void text_in_green(std::string s);   // text in green for info
+inline void text_in_purple(std::string s);  // text in purple for info
 std::string setup_problem(std::string url); // setup problem and json
 std ::string get_temp();                    // gets the template file
 void output_to_json(program *problem);
@@ -51,6 +53,7 @@ bool find_problem_by_title(const std::string &title,
 
 std::vector<std::string> collect_inputs_from_file(std::string input_file);
 std::fstream config_file(CONFIG_FILE, std::ios::app);
+std::pair<int, int> check_output(std::string output_file);
 program *problem = new program;
 
 int main(int argc, char *argv[]) {
@@ -103,10 +106,16 @@ int main(int argc, char *argv[]) {
       } else {
         if (compile(problem->file_name, "psio.out")) {
           run_with_timeout(problem->input_file, "psio.out", 5);
+        } else {
+          break;
         }
       }
       text_in_green("Done\n");
-      text_in_green("Do you want to run again?\n");
+      std::pair<int, int> result = check_output(problem->output_file);
+      text_in_purple("Passed: " + std::to_string(result.first) + " out of " +
+                        std::to_string(result.second) + "\n");
+
+      text_in_purple("Do you want to run again?\n");
       bool check = true;
       while (check) {
         std::cout << "please enter 0 for retest" << std::endl;
@@ -172,7 +181,7 @@ bool is_empty(const std::string &filename) { // check if file is empty
 
 bool exists(std ::string file_name) { return fs::exists(file_name); }
 int setup() {
-  text_in_green("psio test runner\n");
+  text_in_purple("psio test runner\n");
 
   while (true) {
     std::cout << "please enter the mode you want to run" << std::endl;
@@ -228,7 +237,6 @@ int feed(std ::string input_file, std::string output_exe) {
   //
 
   for (auto input_content : inputs) { // feed the input
-    std::cout <<"psio---";
     std::string run_command = std::string("./") + output_exe;
     FILE *pipe = popen(run_command.c_str(), "w");
     if (!pipe) {
@@ -238,9 +246,10 @@ int feed(std ::string input_file, std::string output_exe) {
 
     fwrite(input_content.c_str(), 1, input_content.size(), pipe);
     pclose(pipe);
+    std::cout << "\npsio---\n";
+    fflush(stdout);
   }
   // Restore stdout to its original destination
-  fflush(stdout);
   dup2(fd, fileno(stdout));
   close(fd);
   clearerr(stdout);
@@ -300,7 +309,6 @@ std::string fetchHTML(const std::string &url) {
     res = curl_easy_perform(curl);  // getting response
     curl_easy_cleanup(curl);        // cleaning up
   }
-  std:: cout << htmlContent << std::endl;
   return htmlContent;
 }
 void extract_text_from_node(GumboNode *node,
@@ -559,13 +567,43 @@ std::vector<std::string> collect_inputs_from_file(std::string input_file) {
   }
   return inputs;
 }
+std::pair<int, int> check_output(std::string output_file) {
+  std::ifstream testcases_output(output_file), user_output("psio.output");
+  std::vector<std::string> testcases_output_lines, user_output_lines;
+  int passed = 0, testcases = 0;
+  for (std::string line; std::getline(testcases_output, line);) {
+    testcases_output_lines.push_back(line);
+  }
+  testcases_output_lines.push_back(
+      "psio---"); // for last line becuse my output is missing it
+  testcases_output.close();
+  for (std::string line; std::getline(user_output, line);) {
+    user_output_lines.push_back(line);
+  }
+  user_output.close();
+  for (int i = 0; i < testcases_output_lines.size(); i++) {
+    if (testcases_output_lines[i] == "psio---") {
+      testcases++;
+      continue;
+    }
+    if (testcases_output_lines[i] == user_output_lines[i]) {
+      passed++;
+    }
+  }
+  return (std::pair<int, int>(passed, testcases));
+}
 inline void text_in_red(std::string s) {
   std::cerr << "\033[1;31m";
-  std::cerr << s;
+  std::cerr << "[ERROR]" << s;
   std::cerr << "\033[0m";
 }
 inline void text_in_green(std::string s) {
   std::cout << "\033[1;32m";
+  std::cout << "[INFO]" << s;
+  std::cout << "\033[0m";
+}
+inline void text_in_purple(std::string s) {
+  std::cout << "\033[1;35m";
   std::cout << s;
   std::cout << "\033[0m";
 }

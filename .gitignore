@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+
+## 
+*.In
+*.out
+*.Out
+*.json
+*.output
