@@ -11,7 +11,7 @@
 #include <gumbo.h>
 #include <ios>
 #include <iostream>
-#include <sstream>
+#include <regex>
 #include <thread>
 #include <unistd.h>
 #include <utility>
@@ -19,7 +19,7 @@
 
 #define CONFIG_FILE ".psioConfig.json"
 namespace fs = std::filesystem;
-enum Mode { Create, Exists, Setup, Execution, Clear };
+enum Mode { Create, Exists, Setup, Execution, Clear, Repair };
 
 int setup();
 int feed(std ::string input_file);
@@ -35,15 +35,15 @@ void searchForTestCases(
     GumboNode *node, std::vector<std::string> &inputs,
     std::vector<std::string> &outputs);     // search for test cases
 bool exists(std ::string file_name);        // check if file exists
-void check_json_config();                   // check if config file exists
 inline void text_in_red(std::string s);     // cout text in red for errors
 inline void text_in_green(std::string s);   // text in green for info
 inline void text_in_purple(std::string s);  // text in purple for info
 std::string setup_problem(std::string url); // setup problem and json
 std ::string get_temp();                    // gets the template file
-void output_to_json(program *problem);
+bool output_to_json(program *problem);
 bool is_empty(const std::string &filename); // check if file is empty
-bool exists_in_json(const std::string &problem_name, nlohmann::json &jsonArray);
+bool exists_in_json(const nlohmann::json &problem_name,
+                    nlohmann::json &jsonArray);
 inline std::string remove_spaces(std::string s);
 inline bool is_valid_link(const std::string &link);
 Mode chose_from_json(std::string title);
@@ -54,7 +54,10 @@ bool find_problem_by_title(const std::string &title,
 std::vector<std::string> collect_inputs_from_file(std::string input_file);
 std::fstream config_file(CONFIG_FILE, std::ios::app);
 std::pair<int, int> check_output(std::string output_file);
+Mode create_problem(std::string);
+
 program *problem = new program;
+bool coruppted_json = false;
 
 int main(int argc, char *argv[]) {
   Mode mode = Setup;
@@ -68,24 +71,13 @@ int main(int argc, char *argv[]) {
       text_in_green("Entering Create mode\n");
       std::cout << "please enter the problem url" << std::endl;
       std::cin >> problem->url;
-      if (!is_valid_link(problem->url)) { // check if valid link (problem->url){
+      if (!is_valid_link(problem->url)) { // check if valid link (problem->url):
         text_in_red(problem->url + " is an invalid url\n");
         mode = Clear;
         break;
+      } else {
+        mode = create_problem(problem->url);
       }
-      std::string title = setup_problem(problem->url);
-      if (title == "") {
-        text_in_red("could not setup problem\n");
-        mode = Clear;
-        break;
-      }
-      title = remove_spaces(title);
-      problem->file_name = title + ".cpp";
-      problem->input_file = title + ".In";
-      problem->output_file = title + ".Out";
-      output_to_json(problem);
-      text_in_green("Files setup complete\n");
-      mode = Execution;
       break;
     }
     case Exists: {
@@ -103,6 +95,7 @@ int main(int argc, char *argv[]) {
           !exists(problem->file_name)) {
         text_in_red("One or more files are missing\n");
         mode = Clear;
+        break;
       } else {
         if (compile(problem->file_name, "psio.out")) {
           run_with_timeout(problem->input_file, "psio.out", 5);
@@ -113,7 +106,7 @@ int main(int argc, char *argv[]) {
       text_in_green("Done\n");
       std::pair<int, int> result = check_output(problem->output_file);
       text_in_purple("Passed: " + std::to_string(result.first) + " out of " +
-                        std::to_string(result.second) + "\n");
+                     std::to_string(result.second) + "\n");
 
       text_in_purple("Do you want to run again?\n");
       bool check = true;
@@ -158,10 +151,47 @@ int main(int argc, char *argv[]) {
     }
 
     case Clear: { // clear everything about the problem
+      std::fstream config_file(CONFIG_FILE,
+                               std::ios::app); // for if it's deleted
+      config_file.close();
+      if (coruppted_json) {
+        mode = Repair;
+        coruppted_json = false;
+        break;
+      }
       text_in_red("resetting beacuse of a fault or choosing a new problem\n");
+      sleep(5);
+      system("clear");
       delete problem;
       problem = new program();
+
       mode = Setup;
+      break;
+    }
+    case Repair: {
+      text_in_green("Repairing\n");
+      std::ifstream json_in(CONFIG_FILE);
+      std::string json_string = "";
+      std::vector<std::string> urls;
+      text_in_green("getting urls\n");
+      for (std::string line; std::getline(json_in, line);) {
+        json_string += line;
+        std::regex url_pattern(R"((https?://[^\s"]+))");
+        std::smatch match;
+        if (std::regex_search(line, match, url_pattern)) {
+          urls.push_back(match.str(0)); // Return the first matched URL
+        }
+      }
+      json_in.close();
+      std::ofstream json_out(
+          CONFIG_FILE); // to replace with repaired and delet old one
+      for (const auto url : urls) {
+	  if (create_problem(url) == Execution) // the problem is repaired
+	    text_in_green("Repaired "+ problem->file_name + "\n");
+      }
+      text_in_green("Done Repairing\n");
+      mode = Clear;
+      coruppted_json = false;
       break;
     }
     default: {
@@ -171,9 +201,10 @@ int main(int argc, char *argv[]) {
   }
 }
 bool is_empty(const std::string &filename) { // check if file is empty
-  std::ifstream file(filename, std::ios::binary | std::ios::ate);
+  std::ifstream file(filename, std::ifstream::ate);
   if (!file.is_open()) {
-    text_in_red("Error opening file: " + filename);
+    text_in_red("Error opening file: " + filename + "\n");
+    file.close();
     return false;
   }
   return file.tellg() == 0;
@@ -398,8 +429,8 @@ std::string setup_problem(std::string url) {
     } catch (fs::filesystem_error &e) {
       text_in_red("Error copying template: " + std::string(e.what()) + '\n');
     }
+    text_in_green(title[0] + " is setuped successfully.\n");
     return title[0];
-    ;
   }
   return "";
 }
@@ -434,7 +465,7 @@ std ::string get_temp() {
   }
 }
 
-void output_to_json(program *problem) { // output problem to json
+bool output_to_json(program *problem) { // output problem to json
   nlohmann::json array_of_problems;     // array of problems in the file
   std::ifstream jsonFile(CONFIG_FILE);  // get the problems config file
   nlohmann::json problem_json;          // create json object for the problem
@@ -442,39 +473,55 @@ void output_to_json(program *problem) { // output problem to json
   problem_json["input"] = problem->input_file;
   problem_json["output"] = problem->output_file;
   problem_json["url"] = problem->url;
-  if (!is_empty(CONFIG_FILE)) { // if there are problems
+  if (!is_empty(CONFIG_FILE) && exists(CONFIG_FILE)) { // if there are problems
     if (config_file.is_open()) {
-      array_of_problems = nlohmann::json::parse(jsonFile);
+      try {
+        array_of_problems = nlohmann::json::parse(jsonFile);
+      } catch (nlohmann::json::parse_error &e) {
+        text_in_red("Parse error: " + std::string(e.what()) + "\n");
+        coruppted_json = true;
+        return false;
+      }
     } else {
       text_in_red("Error opening file for reading\n");
-      return;
+      return false;
     }
-    if (exists_in_json(problem->file_name, array_of_problems)) {
-      text_in_red("Problem already exists in JSON. Not adding.\n");
-      // todo add validation
-      return;
+    if (exists_in_json(problem_json, array_of_problems)) {
+      text_in_red(
+          "Problem already exists in JSON. Not adding. maybe fixing \n");
+      return true;
     } else {
+      text_in_green("Adding new problem to JSON\n");
       array_of_problems.push_back(problem_json);
       std::ofstream json_out(
           CONFIG_FILE); // overwrite existing json and add updated version
       json_out << array_of_problems.dump(4);
       json_out.close();
+      return true;
     }
   } else {
     std::ofstream json_out(CONFIG_FILE);
     if (config_file.is_open()) {
+      text_in_green("Creating new json file\n");
       array_of_problems.push_back(problem_json);
       json_out << array_of_problems.dump(4);
       json_out.close();
+      return true;
     } else {
       text_in_red("Error opening file for writing\n");
+      return false;
     }
   }
 }
-bool exists_in_json(const std::string &problem_name,
-                    nlohmann::json &jsonArray) {
-  for (const auto &item : jsonArray) {
-    if (item.contains("title") && item["title"] == problem_name) {
+bool exists_in_json(const nlohmann::json &problem,
+                    nlohmann::json &array_of_problems) {
+  for (auto &item : array_of_problems) {
+    if (item.contains("title") && item["title"] == problem["title"]) {
+      item.update(problem); // resetting maybe some thing is missing
+      std::ofstream json_out(
+          CONFIG_FILE); // overwrite existing json and add updated version
+      json_out << array_of_problems.dump(4);
+      json_out.close();
       return true;
     }
   }
@@ -489,42 +536,49 @@ Mode chose_from_json(std::string title) {
       config_file >> jsonArray;
       config_file.close();
     } catch (const nlohmann::json::parse_error &e) {
-      text_in_red("Parse error: " + std::string(e.what()));
+      text_in_red("Parse error: " + std::string(e.what()) + "\n");
+      coruppted_json = true;
       config_file.close();
-      text_in_red("please enter create mode to fix");
+      text_in_red("please enter create mode to fix\n");
       return Clear;
     }
   } else {
-    text_in_red("Error opening config file for reading");
+    text_in_red("Error opening config file for reading\n");
     // when there is no file
     return Clear;
   }
   nlohmann::json result;
   if (find_problem_by_title(title, jsonArray, result)) {
-    if (result["title"] == "" || result["input"] == "" ||
-        result["output"] == "") {
+    if (result.contains("url") && !result.contains("input") ||
+        !result.contains("output") || !result.contains("title")) {
+      std::cout << "here" << result.contains("url") << std::endl;
       if (is_valid_link(result["url"])) {
         text_in_red("invalid data in json");
         text_in_green("uerl is correct\n");
         setup_problem(result["url"]);
-      } else {
-        text_in_red("invalid data and  url in json\n");
-        text_in_red("please enter create mode to fix");
-        return Clear;
       }
+    } else {
+      text_in_red("invalid data and  url in json\n");
+      text_in_red("please enter create mode to fix\n");
+      return Clear;
     }
 
-    problem->file_name = result["title"];
     problem->input_file = result["input"];
     problem->output_file = result["output"];
+    problem->file_name = result["title"];
+    problem->url = result["url"];
     if (!exists(problem->input_file) || !exists(problem->output_file) ||
         !exists(problem->file_name)) {
       text_in_red("your files are missing\n");
       text_in_green("setting up files\n");
-      setup_problem(problem->url);
-      text_in_green("files are ready\n");
+      if (setup_problem(problem->url) != "")
+        text_in_green("files are ready\n");
+      else {
+        text_in_red("could not setup problem\n");
+        return Clear;
+      }
     }
-    text_in_green("Problem: " + title + "is ready to be solved" + "\n");
+    text_in_green("Problem: " + title + " is ready to be solved" + "\n");
     return Execution;
   } else {
     text_in_red("Problem not found.\n");
@@ -577,8 +631,10 @@ std::pair<int, int> check_output(std::string output_file) {
   testcases_output_lines.push_back(
       "psio---"); // for last line becuse my output is missing it
   testcases_output.close();
+  text_in_green("User output\n");
   for (std::string line; std::getline(user_output, line);) {
     user_output_lines.push_back(line);
+    std::cout << line << "\n";
   }
   user_output.close();
   for (int i = 0; i < testcases_output_lines.size(); i++) {
@@ -592,14 +648,34 @@ std::pair<int, int> check_output(std::string output_file) {
   }
   return (std::pair<int, int>(passed, testcases));
 }
+
+Mode create_problem(std::string url) {
+  problem->url = url;
+  std::string title = setup_problem(problem->url);
+  if (title == "") {
+    text_in_red("could not setup problem\n");
+    return Clear;
+  }
+  title = remove_spaces(title);
+  problem->file_name = title + ".cpp";
+  problem->input_file = title + ".In";
+  problem->output_file = title + ".Out";
+  if (output_to_json(problem)) {
+    text_in_green("Files setup complete\n");
+    return Execution;
+  } else {
+    text_in_red("Error setting up problem\n");
+    return Clear;
+  }
+}
 inline void text_in_red(std::string s) {
   std::cerr << "\033[1;31m";
-  std::cerr << "[ERROR]" << s;
+  std::cerr << "[ ERROR ] " << s;
   std::cerr << "\033[0m";
 }
 inline void text_in_green(std::string s) {
   std::cout << "\033[1;32m";
-  std::cout << "[INFO]" << s;
+  std::cout << "[ INFO ] " << s;
   std::cout << "\033[0m";
 }
 inline void text_in_purple(std::string s) {
