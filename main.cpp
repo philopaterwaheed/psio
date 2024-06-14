@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
       break;
     }
     case Execution: {
+      bool check = true;
       text_in_green("Entering Execution mode\n");
       // additional check
       if (!exists(problem->input_file) || !exists(problem->output_file) ||
@@ -97,19 +98,20 @@ int main(int argc, char *argv[]) {
         mode = Clear;
         break;
       } else {
+        text_in_green("Compiled successfully\n");
         if (compile(problem->file_name, "psio.out")) {
-          run_with_timeout(problem->input_file, "psio.out", 5);
+          if (run_with_timeout(problem->input_file, "psio.out", 5)) {
+            std::pair<int, int> result = check_output(problem->output_file);
+            text_in_purple("Passed: " + std::to_string(result.first) +
+                           " out of " + std::to_string(result.second) + "\n");
+          }
+
         } else {
-          break;
+          text_in_red("Error compiling\n");
         }
       }
-      text_in_green("Done\n");
-      std::pair<int, int> result = check_output(problem->output_file);
-      text_in_purple("Passed: " + std::to_string(result.first) + " out of " +
-                     std::to_string(result.second) + "\n");
 
       text_in_purple("Do you want to run again?\n");
-      bool check = true;
       while (check) {
         std::cout << "please enter 0 for retest" << std::endl;
         std::cout << "please enter 1 for create" << std::endl
@@ -186,8 +188,8 @@ int main(int argc, char *argv[]) {
       std::ofstream json_out(
           CONFIG_FILE); // to replace with repaired and delet old one
       for (const auto url : urls) {
-	  if (create_problem(url) == Execution) // the problem is repaired
-	    text_in_green("Repaired "+ problem->file_name + "\n");
+        if (create_problem(url) == Execution) // the problem is repaired
+          text_in_green("Repaired " + problem->file_name + "\n");
       }
       text_in_green("Done Repairing\n");
       mode = Clear;
