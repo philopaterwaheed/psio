@@ -26,9 +26,14 @@ psio is a program that takes Codeforces problems links and automats
 g++ main.cpp -o psio -lcurl -lgumbo -lpthread
 ```
 
-#### running
+#### adding to path
 ```
 sudo cp ./psio /usr/bin
+```
+
+#### running
+```
+paio
 ```
  #### starting
 if running the program for the first time it asks you where your template file is ; please provide an existing template place .
