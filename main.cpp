@@ -551,15 +551,16 @@ Mode chose_from_json(std::string title) {
   }
   nlohmann::json result;
   if (find_problem_by_title(title, jsonArray, result)) {
-    if (result.contains("url") && !result.contains("input") ||
-        !result.contains("output") || !result.contains("title")) {
+    if (result.contains("url") && (!result.contains("input") ||
+        !result.contains("output") || !result.contains("title"))) {
       std::cout << "here" << result.contains("url") << std::endl;
       if (is_valid_link(result["url"])) {
         text_in_red("invalid data in json");
         text_in_green("uerl is correct\n");
         setup_problem(result["url"]);
       }
-    } else {
+    } else if (!result.contains("url")) {
+    std::cout<<result<<std::endl;
       text_in_red("invalid data and  url in json\n");
       text_in_red("please enter create mode to fix\n");
       return Clear;
