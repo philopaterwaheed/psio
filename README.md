@@ -21,3 +21,6 @@ an automation c++ program for case testing from CodeForces questions
 ```
 g++ main.cpp -o psio -lcurl -lgumbo -lpthread
 ```
+
+### screenshots
+![Screenshot from 2024-06-14 11-59-17](https://github.com/philopaterwaheed/psio/assets/61416026/16dc7cd3-36f5-4a9b-9c14-e3f52a452308)
