@@ -51,7 +51,8 @@ bool find_problem_by_title(const std::string &title,
                            const nlohmann::json &jsonArray,
                            nlohmann::json &result);
 
-std::vector<std::string> collect_inputs_from_file(std::string input_file);
+std::vector<std::vector<std::string>>
+collect_inputs_from_file(std::string input_file);
 std::fstream config_file(CONFIG_FILE, std::ios::app);
 std::pair<int, int> check_output(std::string output_file);
 Mode create_problem(std::string);
@@ -277,7 +278,9 @@ int feed(std ::string input_file, std::string output_exe) {
       return -1;
     }
 
-    fwrite(input_content.c_str(), 1, input_content.size(), pipe);
+    for (auto i : input_content) {
+    fwrite(i.c_str(), 1, i.size(), pipe);
+    }
     pclose(pipe);
     std::cout << "\npsio---\n";
     fflush(stdout);
@@ -551,8 +554,9 @@ Mode chose_from_json(std::string title) {
   }
   nlohmann::json result;
   if (find_problem_by_title(title, jsonArray, result)) {
-    if (result.contains("url") && (!result.contains("input") ||
-        !result.contains("output") || !result.contains("title"))) {
+    if (result.contains("url") &&
+        (!result.contains("input") || !result.contains("output") ||
+         !result.contains("title"))) {
       std::cout << "here" << result.contains("url") << std::endl;
       if (is_valid_link(result["url"])) {
         text_in_red("invalid data in json");
@@ -560,7 +564,7 @@ Mode chose_from_json(std::string title) {
         setup_problem(result["url"]);
       }
     } else if (!result.contains("url")) {
-    std::cout<<result<<std::endl;
+      std::cout << result << std::endl;
       text_in_red("invalid data and  url in json\n");
       text_in_red("please enter create mode to fix\n");
       return Clear;
@@ -599,9 +603,10 @@ bool find_problem_by_title(const std::string &title,
   }
   return false;
 }
-std::vector<std::string> collect_inputs_from_file(std::string input_file) {
+std::vector<std::vector<std::string>>
+collect_inputs_from_file(std::string input_file) {
+  std::vector<std::vector<std::string>> result;
   std::vector<std::string> inputs;
-  std::string input = "";
   std::string temp;
   std::ifstream file(input_file);
   if (!file) {
@@ -611,18 +616,18 @@ std::vector<std::string> collect_inputs_from_file(std::string input_file) {
   if (file.is_open()) {
     while (getline(file, temp)) {
       if (temp != "psio---")
-        input += "\n" + (temp);
+        inputs.push_back(temp);
       else {
-        inputs.push_back(input);
-        input.clear();
+        result.push_back(inputs);
+        inputs.clear();
       }
     }
-    if (input.size() > 0) {
-      inputs.push_back(input);
+    if (inputs.size() > 0) {
+      result.push_back(inputs);
     }
     file.close();
   }
-  return inputs;
+  return result;
 }
 std::pair<int, int> check_output(std::string output_file) {
   std::ifstream testcases_output(output_file), user_output("psio.output");
