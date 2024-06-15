@@ -102,8 +102,9 @@ int main(int argc, char *argv[]) {
           text_in_green("Compiled successfully\n");
           if (run_with_timeout(problem->input_file, "psio.out", 5)) {
             std::pair<int, int> result = check_output(problem->output_file);
-            text_in_purple("Passed: " + std::to_string(result.first) +
-                           " out of " + std::to_string(result.second) + "\n");
+            text_in_purple(
+                "Passed: " + std::to_string(result.first) +
+                " out of " + std::to_string(result.second) + "\n");
           }
 
         } else {
@@ -633,6 +634,7 @@ std::pair<int, int> check_output(std::string output_file) {
   std::ifstream testcases_output(output_file), user_output("psio.output");
   std::vector<std::string> testcases_output_lines, user_output_lines;
   int passed = 0, testcases = 0;
+  bool is_passed = true;
   for (std::string line; std::getline(testcases_output, line);) {
     testcases_output_lines.push_back(line);
   }
@@ -648,10 +650,13 @@ std::pair<int, int> check_output(std::string output_file) {
   for (int i = 0; i < testcases_output_lines.size(); i++) {
     if (testcases_output_lines[i] == "psio---") {
       testcases++;
+      if (is_passed) {
+        passed++;
+      }
       continue;
     }
-    if (testcases_output_lines[i] == user_output_lines[i]) {
-      passed++;
+    if (testcases_output_lines[i] != user_output_lines[i]) {
+      is_passed = false;
     }
   }
   return (std::pair<int, int>(passed, testcases));
