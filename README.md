@@ -33,13 +33,13 @@ sudo cp ./psio /usr/bin
 
 #### running
 ```
-paio
+psio
 ```
  #### starting
 if running the program for the first time it asks you where your template file is ; please provide an existing template place .
 the program stores the config file at 
 ```
-~/.config/paio.config
+~/.config/psio.temp
 ```
 change the first line if you want to change the 
 template file .

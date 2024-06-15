@@ -279,7 +279,7 @@ int feed(std ::string input_file, std::string output_exe) {
     }
 
     for (auto i : input_content) {
-    fwrite(i.c_str(), 1, i.size(), pipe);
+      fwrite(i.c_str(), 1, i.size(), pipe);
     }
     pclose(pipe);
     std::cout << "\npsio---\n";
@@ -433,6 +433,10 @@ std::string setup_problem(std::string url) {
       text_in_green("Template copied successfully.\n");
     } catch (fs::filesystem_error &e) {
       text_in_red("Error copying template: " + std::string(e.what()) + '\n');
+      text_in_red("making an empty file\n");
+      // making an empty file
+      std::ofstream empty(destination);
+      empty.close();
     }
     text_in_green(title[0] + " is setuped successfully.\n");
     return title[0];
