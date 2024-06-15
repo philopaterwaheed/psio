@@ -99,8 +99,8 @@ int main(int argc, char *argv[]) {
         mode = Clear;
         break;
       } else {
-        text_in_green("Compiled successfully\n");
         if (compile(problem->file_name, "psio.out")) {
+          text_in_green("Compiled successfully\n");
           if (run_with_timeout(problem->input_file, "psio.out", 5)) {
             std::pair<int, int> result = check_output(problem->output_file);
             text_in_purple("Passed: " + std::to_string(result.first) +
