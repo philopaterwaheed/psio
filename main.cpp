@@ -653,6 +653,7 @@ std::pair<int, int> check_output(std::string output_file) {
       if (is_passed) {
         passed++;
       }
+      is_passed = true;
       continue;
     }
     if (testcases_output_lines[i] != user_output_lines[i]) {
