@@ -23,7 +23,7 @@ psio is a program that takes Codeforces problems links and automats
 ### usage 
 ##### compile
 ```
-g++ main.cpp -o psio -lcurl -lgumbo -lpthread
+g++ -std=c++17 main.cpp -o psio -lcurl -lgumbo -lpthread
 ```
 
 #### adding to path
